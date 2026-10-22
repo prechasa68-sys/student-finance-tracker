@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: student-finance-tracker
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        value: sqlite:///./data/finance.db
+      - key: LINE_MOCK_MODE
+        value: true
+      - key: OCR_PROVIDER
+        value: mock
+      - key: SEED_DEMO_DATA
+        value: true
