@@ -6,9 +6,10 @@ from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.auth import get_current_user
 from app.config import get_settings
 from app.database import get_db
-from app.models import Transaction
+from app.models import Transaction, User
 from app.schemas import SlipUploadRequest, TransactionOut
 from app.services.line import detect_image_type
 from app.services.ocr.factory import get_ocr_provider
@@ -19,7 +20,11 @@ router = APIRouter()
 
 
 @router.post("/api/slips/upload", response_model=TransactionOut, status_code=status.HTTP_201_CREATED)
-def upload_slip(payload: SlipUploadRequest, db: Session = Depends(get_db)) -> Transaction:
+def upload_slip(
+    payload: SlipUploadRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Transaction:
     settings = get_settings()
 
     raw_base64 = payload.image_base64
@@ -47,6 +52,7 @@ def upload_slip(payload: SlipUploadRequest, db: Session = Depends(get_db)) -> Tr
     parsed = parse_slip_text(ocr_result.text)
 
     item = Transaction(
+        user_id=current_user.id,
         type=None,
         amount=parsed.amount,
         currency=parsed.currency or "THB",
@@ -66,11 +72,14 @@ def upload_slip(payload: SlipUploadRequest, db: Session = Depends(get_db)) -> Tr
 
 
 @router.post("/api/slips/simulate-mock", response_model=TransactionOut, status_code=status.HTTP_201_CREATED)
-def simulate_mock_slip(db: Session = Depends(get_db)) -> Transaction:
+def simulate_mock_slip(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> Transaction:
     parsed = parse_slip_text(SAMPLE_SLIP.strip())
     unique_id = f"sim-{int(time.time() * 1000)}"
 
     item = Transaction(
+        user_id=current_user.id,
         type=None,
         amount=parsed.amount or Decimal("350.00"),
         currency=parsed.currency or "THB",

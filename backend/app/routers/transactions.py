@@ -2,13 +2,15 @@ import csv
 import io
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, Security, status
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.auth import bearer_scheme, decode_access_token, get_current_user, get_optional_user
 from app.constants import CATEGORIES
 from app.database import get_db
-from app.models import Transaction
+from app.models import Transaction, User
 from app.schemas import (
     CategoryList,
     TransactionCreate,
@@ -21,9 +23,39 @@ from app.services.finance import apply_transaction_filters
 router = APIRouter()
 
 
+def _get_user_for_export(
+    token: str | None = Query(default=None),
+    auth: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    raw_token = auth.credentials if auth and auth.credentials else token
+    if not raw_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="กรุณาเข้าสู่ระบบก่อนส่งออกไฟล์")
+    payload = decode_access_token(raw_token)
+    if not payload:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่")
+    user = db.get(User, payload["sub"])
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="ไม่พบผู้ใช้งาน")
+    return user
+
+
 @router.get("/api/categories", response_model=CategoryList)
-def list_categories() -> CategoryList:
-    return CategoryList(categories=CATEGORIES)
+def list_categories(
+    current_user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+) -> CategoryList:
+    cats = list(CATEGORIES)
+    if current_user:
+        user_cats = db.scalars(
+            select(Transaction.category)
+            .where(Transaction.user_id == current_user.id, Transaction.category.is_not(None))
+            .distinct()
+        ).all()
+        for c in user_cats:
+            if c and c.strip() and c.strip() not in cats:
+                cats.append(c.strip())
+    return CategoryList(categories=cats)
 
 
 @router.get("/api/transactions", response_model=list[TransactionOut])
@@ -36,11 +68,13 @@ def list_transactions(
     date_to: datetime | None = None,
     month: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"),
     search: str | None = None,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[Transaction]:
     stmt = select(Transaction).order_by(Transaction.created_at.desc(), Transaction.id.desc())
     stmt = apply_transaction_filters(
         stmt,
+        user_id=current_user.id,
         status=status_filter,
         source=source,
         category=category,
@@ -63,11 +97,13 @@ def export_transactions_csv(
     date_to: datetime | None = None,
     month: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}$"),
     search: str | None = None,
+    current_user: User = Depends(_get_user_for_export),
     db: Session = Depends(get_db),
 ) -> Response:
     stmt = select(Transaction).order_by(Transaction.transaction_date.desc(), Transaction.id.desc())
     stmt = apply_transaction_filters(
         stmt,
+        user_id=current_user.id,
         status=status_filter,
         source=source,
         category=category,
@@ -109,13 +145,18 @@ def export_transactions_csv(
 
 
 @router.post("/api/transactions", response_model=TransactionOut, status_code=status.HTTP_201_CREATED)
-def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)) -> Transaction:
+def create_transaction(
+    payload: TransactionCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Transaction:
     try:
         require_confirmed_fields(payload, payload.status)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    item = Transaction(**payload.model_dump())
+    data = payload.model_dump()
+    item = Transaction(**data, user_id=current_user.id)
     db.add(item)
     db.commit()
     db.refresh(item)
@@ -124,10 +165,13 @@ def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)
 
 @router.put("/api/transactions/{transaction_id}", response_model=TransactionOut)
 def update_transaction(
-    transaction_id: int, payload: TransactionUpdate, db: Session = Depends(get_db)
+    transaction_id: int,
+    payload: TransactionUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> Transaction:
     item = db.get(Transaction, transaction_id)
-    if item is None:
+    if item is None or (item.user_id is not None and item.user_id != current_user.id):
         raise HTTPException(status_code=404, detail="ไม่พบรายการ")
 
     data = payload.model_dump(exclude_unset=True)
@@ -148,15 +192,20 @@ def update_transaction(
 
     for key, value in data.items():
         setattr(item, key, value)
+    item.user_id = current_user.id
     db.commit()
     db.refresh(item)
     return item
 
 
 @router.delete("/api/transactions/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_transaction(transaction_id: int, db: Session = Depends(get_db)) -> None:
+def delete_transaction(
+    transaction_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
     item = db.get(Transaction, transaction_id)
-    if item is None:
+    if item is None or (item.user_id is not None and item.user_id != current_user.id):
         raise HTTPException(status_code=404, detail="ไม่พบรายการ")
     db.delete(item)
     db.commit()
@@ -164,10 +213,13 @@ def delete_transaction(transaction_id: int, db: Session = Depends(get_db)) -> No
 
 @router.post("/api/transactions/{transaction_id}/confirm", response_model=TransactionOut)
 def confirm_transaction(
-    transaction_id: int, payload: TransactionUpdate, db: Session = Depends(get_db)
+    transaction_id: int,
+    payload: TransactionUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> Transaction:
     item = db.get(Transaction, transaction_id)
-    if item is None:
+    if item is None or (item.user_id is not None and item.user_id != current_user.id):
         raise HTTPException(status_code=404, detail="ไม่พบรายการ")
     if item.status == "rejected":
         raise HTTPException(status_code=409, detail="รายการนี้ถูกปฏิเสธแล้ว")
@@ -176,6 +228,7 @@ def confirm_transaction(
     for key, value in data.items():
         setattr(item, key, value)
     item.status = "confirmed"
+    item.user_id = current_user.id
     merged = TransactionUpdate(
         type=item.type,
         amount=item.amount,
@@ -195,11 +248,16 @@ def confirm_transaction(
 
 
 @router.post("/api/transactions/{transaction_id}/reject", response_model=TransactionOut)
-def reject_transaction(transaction_id: int, db: Session = Depends(get_db)) -> Transaction:
+def reject_transaction(
+    transaction_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Transaction:
     item = db.get(Transaction, transaction_id)
-    if item is None:
+    if item is None or (item.user_id is not None and item.user_id != current_user.id):
         raise HTTPException(status_code=404, detail="ไม่พบรายการ")
     item.status = "rejected"
+    item.user_id = current_user.id
     db.commit()
     db.refresh(item)
     return item

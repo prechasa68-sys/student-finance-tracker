@@ -48,3 +48,15 @@ export interface LineStatus {
   message: string;
   bot_display_name: string | null;
 }
+
+export interface User {
+  id: number;
+  username: string;
+  display_name: string;
+  created_at?: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: User;
+}

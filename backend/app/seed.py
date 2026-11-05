@@ -4,17 +4,36 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Transaction
+from app.auth import hash_password
+from app.models import Transaction, User
 
 
 def seed_demo_data(db: Session) -> None:
+    demo_user = db.scalar(select(User).where(User.username == "demo"))
+    if not demo_user:
+        demo_user = User(
+            username="demo",
+            display_name="นักศึกษาตัวอย่าง",
+            password_hash=hash_password("123456"),
+        )
+        db.add(demo_user)
+        db.commit()
+        db.refresh(demo_user)
+
     existing = db.scalar(select(Transaction.id))
     if existing is not None:
+        # If transactions exist without user_id, assign to demo_user
+        orphans = db.scalars(select(Transaction).where(Transaction.user_id.is_(None))).all()
+        for t in orphans:
+            t.user_id = demo_user.id
+        if orphans:
+            db.commit()
         return
 
     today = datetime.now().replace(hour=12, minute=0, second=0, microsecond=0)
     samples = [
         Transaction(
+            user_id=demo_user.id,
             type="income",
             amount=Decimal("8000.00"),
             currency="THB",
@@ -25,6 +44,7 @@ def seed_demo_data(db: Session) -> None:
             status="confirmed",
         ),
         Transaction(
+            user_id=demo_user.id,
             type="expense",
             amount=Decimal("120.00"),
             currency="THB",
@@ -35,6 +55,7 @@ def seed_demo_data(db: Session) -> None:
             status="confirmed",
         ),
         Transaction(
+            user_id=demo_user.id,
             type="expense",
             amount=Decimal("45.00"),
             currency="THB",
@@ -45,6 +66,7 @@ def seed_demo_data(db: Session) -> None:
             status="confirmed",
         ),
         Transaction(
+            user_id=demo_user.id,
             type="expense",
             amount=Decimal("350.00"),
             currency="THB",

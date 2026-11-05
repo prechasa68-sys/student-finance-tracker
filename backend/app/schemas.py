@@ -32,8 +32,13 @@ class TransactionBase(BaseModel):
     @field_validator("category")
     @classmethod
     def category_must_be_known(cls, value: str | None) -> str | None:
-        if value is not None and value not in CATEGORIES:
-            raise ValueError("หมวดหมู่ไม่ถูกต้อง")
+        if value is not None:
+            val = value.strip()
+            if not val:
+                return None
+            if len(val) > 100:
+                raise ValueError("ชื่อหมวดหมู่ต้องไม่เกิน 100 ตัวอักษร")
+            return val
         return value
 
 
@@ -57,6 +62,7 @@ class TransactionOut(TransactionBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    user_id: int | None = None
     source: str
     status: str
     external_message_id: str | None = None
@@ -64,6 +70,39 @@ class TransactionOut(TransactionBase):
     party_name: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class UserRegisterRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=50)
+    password: str = Field(min_length=4, max_length=100)
+    display_name: str = Field(min_length=1, max_length=100)
+
+    @field_validator("username")
+    @classmethod
+    def clean_username(cls, value: str) -> str:
+        val = value.strip().lower()
+        if not val.isalnum() and "_" not in val and "-" not in val:
+            raise ValueError("ชื่อผู้ใช้ต้องเป็นตัวอักษรภาษาอังกฤษ ตัวเลข ขีดล่าง หรือยัติภังค์เท่านั้น")
+        return val
+
+
+class UserLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    username: str
+    display_name: str
+    created_at: datetime
+
+
+class AuthResponse(BaseModel):
+    token: str
+    user: UserOut
 
 
 class DashboardCategoryTotal(BaseModel):

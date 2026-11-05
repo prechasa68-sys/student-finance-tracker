@@ -1,7 +1,8 @@
 import { NavLink, Route, Routes } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { fetchLineStatus, fetchSummary } from "./api";
-import type { LineStatus } from "./types";
+import { fetchLineStatus, fetchSummary, getStoredUser, logoutUser } from "./api";
+import type { LineStatus, User } from "./types";
+import AuthModal from "./components/AuthModal";
 import DashboardPage from "./pages/DashboardPage";
 import TransactionsPage from "./pages/TransactionsPage";
 import CategoriesPage from "./pages/CategoriesPage";
@@ -9,12 +10,21 @@ import ReviewPage from "./pages/ReviewPage";
 import LineSettingsPage from "./pages/LineSettingsPage";
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState<User | null>(getStoredUser);
   const [lineStatus, setLineStatus] = useState<LineStatus | null>(null);
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     return (localStorage.getItem("theme") as "light" | "dark") || "light";
   });
+
+  useEffect(() => {
+    function handleAuthChange() {
+      setCurrentUser(getStoredUser());
+    }
+    window.addEventListener("auth-changed", handleAuthChange);
+    return () => window.removeEventListener("auth-changed", handleAuthChange);
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -26,6 +36,7 @@ export default function App() {
   };
 
   const loadStatusAndSummary = () => {
+    if (!currentUser) return;
     fetchLineStatus()
       .then(setLineStatus)
       .catch(() =>
@@ -45,10 +56,11 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (!currentUser) return;
     loadStatusAndSummary();
     const interval = setInterval(loadStatusAndSummary, 15000);
     return () => clearInterval(interval);
-  }, []);
+  }, [currentUser]);
 
   const getStatusClass = (status?: string) => {
     if (!status) return "";
@@ -57,6 +69,8 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {!currentUser && <AuthModal onSuccess={(user) => setCurrentUser(user)} />}
+
       <header className="topbar-container">
         <div className="topbar">
           <div className="brand-section">
@@ -69,6 +83,22 @@ export default function App() {
             </div>
           </div>
           <div className="topbar-actions">
+            {currentUser && (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+                <span style={{ fontSize: "0.85rem", color: "var(--muted)" }}>
+                  👤 <b>{currentUser.display_name}</b> <small>({currentUser.username})</small>
+                </span>
+                <button
+                  type="button"
+                  className="ghost"
+                  style={{ fontSize: "0.8rem", padding: "0.25rem 0.55rem" }}
+                  onClick={() => logoutUser()}
+                  title="ออกจากระบบเพื่อเปลี่ยนบัญชีผู้ใช้"
+                >
+                  🚪 ออกจากระบบ
+                </button>
+              </div>
+            )}
             <button className="theme-toggle-btn" onClick={toggleTheme} title="เปลี่ยนธีม">
               {theme === "light" ? "🌙 โหมดมืด" : "☀️ โหมดสว่าง"}
             </button>

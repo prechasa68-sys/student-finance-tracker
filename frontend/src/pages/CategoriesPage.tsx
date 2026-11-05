@@ -44,8 +44,16 @@ export default function CategoriesPage() {
       .reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
   }, [items]);
 
+  const allCategories = useMemo(() => {
+    const set = new Set([...categories]);
+    items.forEach((item) => {
+      if (item.category) set.add(item.category);
+    });
+    return Array.from(set);
+  }, [categories, items]);
+
   const totals = useMemo(() => {
-    return categories.map((category) => {
+    return allCategories.map((category) => {
       const related = items.filter((item) => item.category === category);
       const income = related
         .filter((item) => item.type === "income")
@@ -56,7 +64,7 @@ export default function CategoriesPage() {
       const percent = totalAllExpense > 0 ? Math.round((expense / totalAllExpense) * 100) : 0;
       return { category, income, expense, count: related.length, percent };
     });
-  }, [categories, items, totalAllExpense]);
+  }, [allCategories, items, totalAllExpense]);
 
   const maxExpense = Math.max(...totals.map((t) => t.expense), 0);
 
@@ -80,7 +88,7 @@ export default function CategoriesPage() {
 
       <div className="category-grid">
         {totals.map((item) => {
-          const icon = CATEGORY_ICONS[item.category] || "📦";
+          const icon = CATEGORY_ICONS[item.category] || (item.category.startsWith("อื่น") ? "📦" : "🏷️");
           const desc = CATEGORY_DESCRIPTIONS[item.category] || "";
           const isTop = item.expense > 0 && item.expense === maxExpense;
 

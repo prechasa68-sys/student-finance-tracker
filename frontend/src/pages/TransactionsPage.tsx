@@ -70,6 +70,14 @@ export default function TransactionsPage() {
     load();
   }, [filters, searchQuery]);
 
+  const availableCategories = useMemo(() => {
+    const set = new Set([...categories]);
+    items.forEach((item) => {
+      if (item.category) set.add(item.category);
+    });
+    return Array.from(set);
+  }, [categories, items]);
+
   const visible = useMemo(() => items.filter((item) => item.status !== "rejected"), [items]);
 
   const { totalIncome, totalExpense, balance } = useMemo(() => {
@@ -228,8 +236,8 @@ export default function TransactionsPage() {
               onChange={(e) => setFilters({ ...filters, type: e.target.value })}
             >
               <option value="">ทั้งหมด (รายรับ/รายจ่าย)</option>
-              <option value="expense">รายจ่าย</option>
               <option value="income">รายรับ</option>
+              <option value="expense">รายจ่าย</option>
             </select>
           </label>
 
@@ -240,9 +248,9 @@ export default function TransactionsPage() {
               onChange={(e) => setFilters({ ...filters, category: e.target.value })}
             >
               <option value="">ทุกหมวดหมู่</option>
-              {categories.map((item) => (
+              {availableCategories.map((item) => (
                 <option key={item} value={item}>
-                  {CATEGORY_ICONS[item] || "🏷️"} {item}
+                  {CATEGORY_ICONS[item] || (item.startsWith("อื่น") ? "📦" : "🏷️")} {item}
                 </option>
               ))}
             </select>
@@ -351,7 +359,8 @@ export default function TransactionsPage() {
                   <td>
                     {item.category ? (
                       <span className="tag tag-category">
-                        {CATEGORY_ICONS[item.category] || "🏷️"} {item.category}
+                        {CATEGORY_ICONS[item.category] || (item.category.startsWith("อื่น") ? "📦" : "🏷️")}{" "}
+                        {item.category}
                       </span>
                     ) : (
                       <span className="muted">-</span>

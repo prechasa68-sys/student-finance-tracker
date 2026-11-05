@@ -19,6 +19,7 @@ def quantize_money(value: Decimal | None) -> Decimal:
 def apply_transaction_filters(
     stmt: Select[tuple[Transaction]],
     *,
+    user_id: int | None = None,
     status: str | None = None,
     source: str | None = None,
     category: str | None = None,
@@ -28,6 +29,8 @@ def apply_transaction_filters(
     month: str | None = None,
     search: str | None = None,
 ) -> Select[tuple[Transaction]]:
+    if user_id is not None:
+        stmt = stmt.where(Transaction.user_id == user_id)
     if status:
         stmt = stmt.where(Transaction.status == status)
     if source:
@@ -62,8 +65,11 @@ def apply_transaction_filters(
     return stmt
 
 
-def calculate_summary(db: Session) -> dict:
-    rows = db.scalars(select(Transaction).where(Transaction.status == "confirmed")).all()
+def calculate_summary(db: Session, user_id: int | None = None) -> dict:
+    stmt = select(Transaction).where(Transaction.status == "confirmed")
+    if user_id is not None:
+        stmt = stmt.where(Transaction.user_id == user_id)
+    rows = db.scalars(stmt).all()
     income = Decimal("0.00")
     expense = Decimal("0.00")
     by_category: dict[str, Decimal] = defaultdict(lambda: Decimal("0.00"))
@@ -77,9 +83,10 @@ def calculate_summary(db: Session) -> dict:
             if row.category:
                 by_category[row.category] += amount
 
-    pending_review_count = len(
-        db.scalars(select(Transaction).where(Transaction.status == "pending_review")).all()
-    )
+    pending_stmt = select(Transaction).where(Transaction.status == "pending_review")
+    if user_id is not None:
+        pending_stmt = pending_stmt.where(Transaction.user_id == user_id)
+    pending_review_count = len(db.scalars(pending_stmt).all())
     confirmed_count = len(rows)
 
     expense_by_category = [
