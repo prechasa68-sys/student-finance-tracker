@@ -21,9 +21,15 @@ THAI_MONTHS = {
 }
 
 AMOUNT_PATTERNS = [
-    re.compile(r"(?:จำนวนเงิน|ยอดเงิน|ยอดโอน|amount)\s*[:\-]?\s*฿?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})|[0-9]+(?:\.[0-9]{1,2})?)", re.IGNORECASE),
+    re.compile(
+        r"(?:จำนวนเงิน|จํานวนเงิน|ยอดเงิน|ยอดเงินโอน|ยอดโอน|ยอดชำระ|ยอดชําระ|ยอดรวม|จำนวน|amount|total)\s*[:\-]?\s*฿?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})|[0-9]+(?:\.[0-9]{1,2})?)",
+        re.IGNORECASE,
+    ),
     re.compile(r"฿\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)"),
-    re.compile(r"([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})|[0-9]+(?:\.[0-9]{1,2})?)\s*(?:บาท|THB)\b", re.IGNORECASE),
+    re.compile(
+        r"([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})|[0-9]+(?:\.[0-9]{1,2})?)\s*(?:บาท|THB)\b",
+        re.IGNORECASE,
+    ),
 ]
 
 DATE_PATTERNS = [
@@ -64,18 +70,22 @@ class ParsedSlip:
 
 
 def _parse_amount(text: str) -> Decimal | None:
-    for pattern in AMOUNT_PATTERNS:
-        match = pattern.search(text)
-        if not match:
-            continue
-        raw = match.group(1).replace(",", "")
-        try:
-            value = Decimal(raw)
-        except InvalidOperation:
-            return None
-        if value <= 0:
-            return None
-        return value
+    # Filter out fee lines so "0.00 บาท" from fee doesn't override the actual amount
+    cleaned_lines = [
+        line for line in text.splitlines() if not re.search(r"ค่าธรรมเนียม|fee", line, re.IGNORECASE)
+    ]
+    target_texts = ["\n".join(cleaned_lines), text]
+
+    for target in target_texts:
+        for pattern in AMOUNT_PATTERNS:
+            for match in pattern.finditer(target):
+                raw = match.group(1).replace(",", "")
+                try:
+                    value = Decimal(raw)
+                except InvalidOperation:
+                    continue
+                if value > 0:
+                    return value
     return None
 
 

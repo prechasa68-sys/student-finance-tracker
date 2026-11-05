@@ -1,18 +1,14 @@
 import { NavLink, Route, Routes } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { fetchLineStatus, fetchSummary, getStoredUser, logoutUser } from "./api";
-import type { LineStatus, User } from "./types";
+import { getStoredUser, logoutUser } from "./api";
+import type { User } from "./types";
 import AuthModal from "./components/AuthModal";
 import DashboardPage from "./pages/DashboardPage";
 import TransactionsPage from "./pages/TransactionsPage";
 import CategoriesPage from "./pages/CategoriesPage";
-import ReviewPage from "./pages/ReviewPage";
-import LineSettingsPage from "./pages/LineSettingsPage";
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(getStoredUser);
-  const [lineStatus, setLineStatus] = useState<LineStatus | null>(null);
-  const [pendingCount, setPendingCount] = useState<number>(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     return (localStorage.getItem("theme") as "light" | "dark") || "light";
@@ -35,38 +31,6 @@ export default function App() {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
-  const loadStatusAndSummary = () => {
-    if (!currentUser) return;
-    fetchLineStatus()
-      .then(setLineStatus)
-      .catch(() =>
-        setLineStatus({
-          status: "Error",
-          configured: false,
-          mock_mode: false,
-          ocr_provider: "unknown",
-          message: "เรียกสถานะ LINE ไม่สำเร็จ",
-          bot_display_name: null,
-        }),
-      );
-
-    fetchSummary()
-      .then((data) => setPendingCount(data.pending_review_count))
-      .catch(() => {});
-  };
-
-  useEffect(() => {
-    if (!currentUser) return;
-    loadStatusAndSummary();
-    const interval = setInterval(loadStatusAndSummary, 15000);
-    return () => clearInterval(interval);
-  }, [currentUser]);
-
-  const getStatusClass = (status?: string) => {
-    if (!status) return "";
-    return status.toLowerCase().replace(/\s+/g, "-");
-  };
-
   return (
     <div className="app-shell">
       {!currentUser && <AuthModal onSuccess={(user) => setCurrentUser(user)} />}
@@ -74,11 +38,11 @@ export default function App() {
       <header className="topbar-container">
         <div className="topbar">
           <div className="brand-section">
-            <div className="brand-logo">🎓</div>
+            <div className="brand-logo">💳</div>
             <div className="brand-text">
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <h1>Student Finance Tracker</h1>
-                <span className="brand-badge">สำหรับนักศึกษา</span>
+                <h1>FinOS</h1>
+                <span className="brand-badge">บันทึกรายรับ-รายจ่าย</span>
               </div>
             </div>
           </div>
@@ -93,7 +57,7 @@ export default function App() {
                   className="ghost"
                   style={{ fontSize: "0.8rem", padding: "0.25rem 0.55rem" }}
                   onClick={() => logoutUser()}
-                  title="ออกจากระบบเพื่อเปลี่ยนบัญชีผู้ใช้"
+                  title="ออกจากระบบ"
                 >
                   🚪 ออกจากระบบ
                 </button>
@@ -115,7 +79,7 @@ export default function App() {
             <NavLink to="/" className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
               <div className="link-content">
                 <span className="nav-icon">📊</span>
-                <span>Dashboard</span>
+                <span>Dashboard ภาพรวม</span>
               </div>
             </NavLink>
             <NavLink to="/transactions" className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
@@ -130,28 +94,7 @@ export default function App() {
                 <span>หมวดหมู่</span>
               </div>
             </NavLink>
-            <NavLink to="/review" className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
-              <div className="link-content">
-                <span className="nav-icon">🧾</span>
-                <span>รอตรวจสอบสลิป</span>
-              </div>
-              {pendingCount > 0 && <span className="nav-badge">{pendingCount}</span>}
-            </NavLink>
-            <NavLink to="/line" className={({ isActive }) => `nav-link ${isActive ? "active" : ""}`}>
-              <div className="link-content">
-                <span className="nav-icon">💬</span>
-                <span>ตั้งค่า LINE Bot</span>
-              </div>
-            </NavLink>
           </nav>
-
-          <div className="sidebar-line-status">
-            <span>สถานะระบบ LINE</span>
-            <div className={`status-chip ${getStatusClass(lineStatus?.status)}`}>
-              <span className="dot" />
-              {lineStatus?.status ?? "กำลังตรวจสอบ..."}
-            </div>
-          </div>
         </aside>
 
         <main className="content">
@@ -159,8 +102,6 @@ export default function App() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/transactions" element={<TransactionsPage />} />
             <Route path="/categories" element={<CategoriesPage />} />
-            <Route path="/review" element={<ReviewPage onUpdate={loadStatusAndSummary} />} />
-            <Route path="/line" element={<LineSettingsPage />} />
           </Routes>
         </main>
       </div>

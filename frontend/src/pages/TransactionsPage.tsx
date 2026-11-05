@@ -8,7 +8,7 @@ import {
   updateTransaction,
 } from "../api";
 import TransactionForm from "../components/TransactionForm";
-import { formatDateTime, formatMoney, sourceLabel, statusLabel } from "../format";
+import { formatDateTime, formatMoney } from "../format";
 import type { Transaction, TransactionPayload } from "../types";
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -267,20 +267,7 @@ export default function TransactionsPage() {
             />
           </label>
 
-          <label>
-            แหล่งที่มา
-            <select
-              value={filters.source}
-              onChange={(e) => setFilters({ ...filters, source: e.target.value })}
-            >
-              <option value="">ทุกแหล่งที่มา</option>
-              <option value="manual">เพิ่มเอง</option>
-              <option value="line_ocr">จาก LINE OCR</option>
-              <option value="web_ocr">อัปโหลดสลิปเว็บ</option>
-            </select>
-          </label>
-
-          <div style={{ display: "flex", gap: "0.5rem" }}>
+          <div style={{ display: "flex", alignItems: "flex-end" }}>
             <button
               type="button"
               className="ghost"
@@ -334,8 +321,6 @@ export default function TransactionsPage() {
                 <th>หมวดหมู่</th>
                 <th>จำนวนเงิน</th>
                 <th>หมายเหตุ / รายละเอียด</th>
-                <th>ที่มา</th>
-                <th>สถานะ</th>
                 <th style={{ textAlign: "right" }}>จัดการ</th>
               </tr>
             </thead>
@@ -382,27 +367,7 @@ export default function TransactionsPage() {
                     </span>
                   </td>
                   <td>
-                    <div style={{ display: "flex", flexDirection: "column" }}>
-                      <span>{item.note || <span className="muted">-</span>}</span>
-                      {item.party_name && (
-                        <span className="muted" style={{ fontSize: "0.78rem" }}>
-                          สลิป: {item.party_name}
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td>
-                    <span className="tag tag-source">{sourceLabel(item.source)}</span>
-                  </td>
-                  <td>
-                    <span
-                      className={`status-chip ${
-                        item.status === "confirmed" ? "connected" : "not-configured"
-                      }`}
-                      style={{ fontSize: "0.75rem", padding: "0.2rem 0.6rem" }}
-                    >
-                      {statusLabel(item.status)}
-                    </span>
+                    <span>{item.note || <span className="muted">-</span>}</span>
                   </td>
                   <td>
                     <div className="actions-cell">
