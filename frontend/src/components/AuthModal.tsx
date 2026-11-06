@@ -11,19 +11,21 @@ export default function AuthModal({ onSuccess }: Props) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!username.trim() || !password) {
+    const cleanUser = username.trim().toLowerCase();
+    if (!cleanUser || !password) {
       setError("กรุณากรอกชื่อผู้ใช้และรหัสผ่าน");
       return;
     }
     setLoading(true);
     try {
-      const res = await loginUser(username.trim(), password);
+      const res = await loginUser(cleanUser, password);
       onSuccess(res.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : "เข้าสู่ระบบไม่สำเร็จ");
@@ -35,7 +37,8 @@ export default function AuthModal({ onSuccess }: Props) {
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!username.trim() || !password || !displayName.trim()) {
+    const cleanUser = username.trim().toLowerCase();
+    if (!cleanUser || !password || !displayName.trim()) {
       setError("กรุณากรอกข้อมูลให้ครบทุกช่อง");
       return;
     }
@@ -45,7 +48,7 @@ export default function AuthModal({ onSuccess }: Props) {
     }
     setLoading(true);
     try {
-      const res = await registerUser(username.trim(), password, displayName.trim());
+      const res = await registerUser(cleanUser, password, displayName.trim());
       onSuccess(res.user);
     } catch (err) {
       setError(err instanceof Error ? err.message : "สมัครสมาชิกไม่สำเร็จ");
@@ -95,10 +98,10 @@ export default function AuthModal({ onSuccess }: Props) {
         }}
       >
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: "2.8rem", marginBottom: "0.5rem" }}>🎓</div>
-          <h2 style={{ fontSize: "1.45rem", marginBottom: "0.25rem" }}>Student Finance Tracker</h2>
+          <div style={{ fontSize: "2.8rem", marginBottom: "0.5rem" }}>💳</div>
+          <h2 style={{ fontSize: "1.45rem", marginBottom: "0.25rem" }}>FinOS</h2>
           <p style={{ color: "var(--muted, #94a3b8)", fontSize: "0.88rem" }}>
-            ระบบบันทึกรายรับ-รายจ่าย แยกข้อมูลผู้ใช้ส่วนบุคคล
+            ระบบบันทึกรายรับ-รายจ่ายส่วนบุคคล
           </p>
         </div>
 
@@ -143,6 +146,11 @@ export default function AuthModal({ onSuccess }: Props) {
               ชื่อผู้ใช้ (Username)
               <input
                 type="text"
+                name="username"
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 autoFocus
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
@@ -151,9 +159,24 @@ export default function AuthModal({ onSuccess }: Props) {
               />
             </label>
             <label>
-              รหัสผ่าน (Password)
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>รหัสผ่าน (Password)</span>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => setShowPassword((p) => !p)}
+                  style={{ fontSize: "0.78rem", padding: "0.1rem 0.4rem" }}
+                >
+                  {showPassword ? "🙈 ซ่อน" : "👁️ แสดง"}
+                </button>
+              </div>
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
+                name="password"
+                autoComplete="current-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
@@ -176,10 +199,12 @@ export default function AuthModal({ onSuccess }: Props) {
               ชื่อที่ต้องการให้แสดง (Display Name)
               <input
                 type="text"
+                name="name"
+                autoCapitalize="words"
                 autoFocus
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="เช่น น้องพลอย, สมชาย ใจดี"
+                placeholder="เช่น น้องพลอย, สมชาย"
                 required
               />
             </label>
@@ -187,6 +212,11 @@ export default function AuthModal({ onSuccess }: Props) {
               ชื่อผู้ใช้ภาษาอังกฤษ (Username)
               <input
                 type="text"
+                name="username"
+                autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="เช่น ploy_s, somchai68"
@@ -194,9 +224,24 @@ export default function AuthModal({ onSuccess }: Props) {
               />
             </label>
             <label>
-              กำหนดรหัสผ่าน (อย่างน้อย 4 ตัวอักษร)
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span>กำหนดรหัสผ่าน (อย่างน้อย 4 ตัวอักษร)</span>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => setShowPassword((p) => !p)}
+                  style={{ fontSize: "0.78rem", padding: "0.1rem 0.4rem" }}
+                >
+                  {showPassword ? "🙈 ซ่อน" : "👁️ แสดง"}
+                </button>
+              </div>
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
+                name="new-password"
+                autoComplete="new-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
@@ -246,4 +291,3 @@ export default function AuthModal({ onSuccess }: Props) {
     </div>
   );
 }
-

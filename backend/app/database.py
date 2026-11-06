@@ -24,11 +24,18 @@ def _ensure_sqlite_dir(database_url: str) -> None:
 settings = get_settings()
 _ensure_sqlite_dir(settings.database_url)
 
-connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
+raw_url = settings.database_url
+if raw_url.startswith("postgres://"):
+    raw_url = raw_url.replace("postgres://", "postgresql://", 1)
+
+connect_args = {"check_same_thread": False} if raw_url.startswith("sqlite") else {}
 engine_kwargs: dict = {"connect_args": connect_args}
-if settings.database_url in {"sqlite:///:memory:", "sqlite://"}:
+if raw_url in {"sqlite:///:memory:", "sqlite://"}:
     engine_kwargs["poolclass"] = StaticPool
-engine = create_engine(settings.database_url, **engine_kwargs)
+elif not raw_url.startswith("sqlite"):
+    engine_kwargs["pool_pre_ping"] = True
+
+engine = create_engine(raw_url, **engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 

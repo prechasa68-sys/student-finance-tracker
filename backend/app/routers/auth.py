@@ -42,10 +42,15 @@ def register(payload: UserRegisterRequest, db: Session = Depends(get_db)) -> Aut
 def login(payload: UserLoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
     clean_uname = payload.username.strip().lower()
     user = db.scalar(select(User).where(func.lower(User.username) == clean_uname))
-    if not user or not verify_password(payload.password, user.password_hash):
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง",
+            detail="ไม่พบบัญชีผู้ใช้นี้ในระบบ (หากเซิร์ฟเวอร์เพิ่งรีสตาร์ต กรุณาสมัครใหม่ หรือเข้าใช้ด้วย Demo)",
+        )
+    if not verify_password(payload.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="รหัสผ่านไม่ถูกต้อง กรุณาตรวจสอบตัวพิมพ์เล็ก-ใหญ่",
         )
 
     token = create_access_token(user.id, user.username)
