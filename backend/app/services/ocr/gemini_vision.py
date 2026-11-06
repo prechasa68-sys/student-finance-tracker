@@ -52,6 +52,37 @@ Rules:
 """
 
 
+def get_model_candidates(api_key: str) -> list[str]:
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
+        with httpx.Client(timeout=10.0) as client:
+            res = client.get(url)
+            if res.status_code == 200:
+                models = res.json().get("models", [])
+                supported = []
+                for m in models:
+                    methods = m.get("supportedGenerationMethods", [])
+                    if "generateContent" in methods:
+                        name = m.get("name", "").replace("models/", "")
+                        if name:
+                            supported.append(name)
+                if supported:
+                    flash_models = [m for m in supported if "flash" in m.lower()]
+                    other_models = [m for m in supported if "flash" not in m.lower()]
+                    return flash_models + other_models
+    except Exception:
+        pass
+
+    return [
+        "gemini-3.8-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-exp",
+    ]
+
+
 def scan_slip_with_gemini(
     image_bytes: bytes,
     content_type: str = "image/jpeg",
@@ -86,7 +117,7 @@ def scan_slip_with_gemini(
         },
     }
 
-    models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash"]
+    models_to_try = get_model_candidates(api_key)
     last_error = ""
 
     for model in models_to_try:
