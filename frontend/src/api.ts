@@ -2,6 +2,7 @@ import type {
   AuthResponse,
   DashboardSummary,
   LineStatus,
+  SlipScanResponse,
   Transaction,
   TransactionPayload,
   User,
@@ -164,6 +165,13 @@ export function fetchHealth() {
 
 export function uploadSlip(imageBase64: string, filename?: string) {
   return request<Transaction>("/api/slips/upload", {
+    method: "POST",
+    body: JSON.stringify({ image_base64: imageBase64, filename }),
+  });
+}
+
+export function scanSlip(imageBase64: string, filename?: string) {
+  return request<SlipScanResponse>("/api/slips/scan", {
     method: "POST",
     body: JSON.stringify({ image_base64: imageBase64, filename }),
   });

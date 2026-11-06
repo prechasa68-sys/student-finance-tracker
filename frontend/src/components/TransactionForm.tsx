@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { fetchCategories } from "../api";
+import { fetchCategories, scanSlip } from "../api";
 import { toDateTimeLocal } from "../format";
 import type { Transaction, TransactionPayload } from "../types";
 
@@ -56,6 +56,58 @@ export default function TransactionForm({
   const [note, setNote] = useState(initial?.note ?? "");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanSuccess, setScanSuccess] = useState("");
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("กรุณาเลือกไฟล์รูปภาพสลิปเท่านั้น (.jpg, .png)");
+      return;
+    }
+    setScanning(true);
+    setError("");
+    setScanSuccess("");
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const base64 = reader.result as string;
+        const res = await scanSlip(base64, file.name);
+        if (res.type) setType(res.type);
+        if (res.amount) setAmount(String(res.amount));
+        if (res.category) {
+          if (PRESET_CATEGORIES.includes(res.category)) {
+            setCategory(res.category);
+            setCustomOther("");
+          } else {
+            setCategory("อื่น ๆ");
+            setCustomOther(res.category.replace(/^(อื่น ๆ:?\s*|อื่นๆ:?\s*)/, ""));
+          }
+        }
+        if (res.transaction_date) {
+          setTransactionDate(toDateTimeLocal(res.transaction_date));
+        }
+        if (res.note) {
+          setNote(res.note);
+        } else if (res.party_name) {
+          setNote(`สลิป: ${res.party_name}`);
+        }
+        setScanSuccess(`✨ AI อ่านสลิปสำเร็จ! ยอด ${res.amount} บาท (${res.type === "income" ? "รายรับ" : "รายจ่าย"})`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "สแกนสลิปไม่สำเร็จ");
+      } finally {
+        setScanning(false);
+        e.target.value = "";
+      }
+    };
+    reader.onerror = () => {
+      setError("อ่านไฟล์รูปภาพไม่สำเร็จ");
+      setScanning(false);
+    };
+    reader.readAsDataURL(file);
+  }
 
   useEffect(() => {
     fetchCategories()
@@ -143,6 +195,44 @@ export default function TransactionForm({
 
   return (
     <form className="card form-grid" onSubmit={handleSubmit}>
+      {/* AI Slip Scanner Box */}
+      <div
+        className="full"
+        style={{
+          border: "2px dashed var(--brand, #3b82f6)",
+          padding: "0.85rem",
+          borderRadius: "10px",
+          textAlign: "center",
+          background: "rgba(59, 130, 246, 0.05)",
+          marginBottom: "0.5rem",
+        }}
+      >
+        <input
+          type="file"
+          accept="image/*"
+          id="slip-upload-input"
+          style={{ display: "none" }}
+          onChange={handleFileChange}
+          disabled={scanning}
+        />
+        <label
+          htmlFor="slip-upload-input"
+          style={{ cursor: scanning ? "wait" : "pointer", display: "block", margin: 0 }}
+        >
+          <div style={{ fontSize: "1.7rem", marginBottom: "0.15rem" }}>
+            {scanning ? "⏳" : "📸"}
+          </div>
+          <b style={{ color: "var(--brand, #3b82f6)", fontSize: "0.95rem" }}>
+            {scanning ? "กำลังวิเคราะห์สลิปด้วย AI..." : "แตะที่นี่เพื่อถ่ายรูป / แนบสลิปโอนเงิน (สแกนอัตโนมัติ)"}
+          </b>
+          <p style={{ margin: "0.2rem 0 0", fontSize: "0.82rem", color: "var(--muted)" }}>
+            ระบบจะดึงยอดเงิน วันที่ และจัดหมวดหมู่อัตโนมัติใน 1 วินาที
+          </p>
+        </label>
+      </div>
+
+      {scanSuccess && <div className="success-banner full">{scanSuccess}</div>}
+
       <div className="full" style={{ display: "flex", gap: "0.5rem", marginBottom: "0.25rem" }}>
         <button
           type="button"

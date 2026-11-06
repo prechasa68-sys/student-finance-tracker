@@ -150,6 +150,15 @@ class SlipUploadRequest(BaseModel):
     filename: str | None = None
 
 
+class SlipScanResponse(BaseModel):
+    amount: Decimal | None
+    type: str
+    category: str
+    transaction_date: datetime | None
+    party_name: str | None
+    note: str | None
+
+
 
 def require_confirmed_fields(payload: TransactionBase, status: str) -> None:
     if status != "confirmed":

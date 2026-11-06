@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     ocr_provider: str = "mock"
     ocr_space_api_key: str = ""
     ocr_space_endpoint: str = "https://api.ocr.space/parse/image"
+    gemini_api_key: str = ""
     ocr_timeout_seconds: float = 20.0
     max_image_bytes: int = 5 * 1024 * 1024
 

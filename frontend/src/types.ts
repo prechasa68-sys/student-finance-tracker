@@ -60,3 +60,12 @@ export interface AuthResponse {
   token: string;
   user: User;
 }
+
+export interface SlipScanResponse {
+  amount: number | string | null;
+  type: "income" | "expense";
+  category: string;
+  transaction_date: string | null;
+  party_name: string | null;
+  note: string | null;
+}

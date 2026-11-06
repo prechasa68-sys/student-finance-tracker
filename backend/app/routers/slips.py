@@ -10,13 +10,54 @@ from app.auth import get_current_user
 from app.config import get_settings
 from app.database import get_db
 from app.models import Transaction, User
-from app.schemas import SlipUploadRequest, TransactionOut
+from app.schemas import SlipScanResponse, SlipUploadRequest, TransactionOut
 from app.services.line import detect_image_type
 from app.services.ocr.factory import get_ocr_provider
+from app.services.ocr.gemini_vision import scan_slip_with_gemini
 from app.services.ocr.mock import SAMPLE_SLIP
 from app.services.ocr.parser import parse_slip_text
 
 router = APIRouter()
+
+
+@router.post("/api/slips/scan", response_model=SlipScanResponse)
+def scan_slip(
+    payload: SlipUploadRequest,
+    current_user: User = Depends(get_current_user),
+) -> SlipScanResponse:
+    settings = get_settings()
+
+    raw_base64 = payload.image_base64
+    if "," in raw_base64:
+        raw_base64 = raw_base64.split(",", 1)[1]
+
+    try:
+        image_bytes = base64.b64decode(raw_base64)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="รูปแบบไฟล์ Base64 ไม่ถูกต้อง") from exc
+
+    if len(image_bytes) > settings.max_image_bytes:
+        raise HTTPException(status_code=400, detail="ไฟล์ภาพมีขนาดใหญ่เกิน 5MB")
+
+    content_type = detect_image_type(image_bytes) or "image/jpeg"
+
+    if settings.gemini_api_key:
+        result = scan_slip_with_gemini(image_bytes, content_type, settings)
+        if result.success:
+            return SlipScanResponse(
+                amount=result.amount,
+                type=result.type,
+                category=result.category,
+                transaction_date=result.transaction_date,
+                party_name=result.party_name,
+                note=result.note,
+            )
+        raise HTTPException(status_code=400, detail=result.error or "ไม่สามารถอ่านข้อมูลจากสลิปได้")
+
+    raise HTTPException(
+        status_code=400,
+        detail="ยังไม่ได้ใส่ GEMINI_API_KEY บน Render (กรุณาขอรับ API Key ฟรีที่ aistudio.google.com แล้วนำไปใส่ใน Environment Variables)",
+    )
 
 
 @router.post("/api/slips/upload", response_model=TransactionOut, status_code=status.HTTP_201_CREATED)
